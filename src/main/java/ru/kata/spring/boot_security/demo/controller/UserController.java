@@ -11,21 +11,16 @@ import org.springframework.web.bind.annotation.PostMapping;
 import ru.kata.spring.boot_security.demo.model.User;
 import ru.kata.spring.boot_security.demo.service.UserService;
 
-import java.security.Principal;
 import java.util.List;
 
 @Controller
 public class UserController {
     private final UserService userService;
+    private Long userId;
 
     @Autowired
     public UserController(UserService userService) {
         this.userService = userService;
-    }
-
-    @GetMapping("/index")
-    public String index() {
-        return "index";
     }
 
     @GetMapping("/user")
@@ -53,12 +48,13 @@ public class UserController {
     public String updateUserForm(@PathVariable("id") Long id, Model model) {
         User user = userService.findById(id);
         model.addAttribute("user", user);
+        userId = id;
         return "users/edit";
     }
 
     @PostMapping("/admin/user-update")
     public String updateUser(User user) {
-        userService.saveUser(user);
+        userService.updateUser(user, userId);
         return "redirect:/admin";
     }
 

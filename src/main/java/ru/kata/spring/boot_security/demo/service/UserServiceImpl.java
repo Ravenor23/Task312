@@ -3,32 +3,26 @@ package ru.kata.spring.boot_security.demo.service;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.AuthorityUtils;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.kata.spring.boot_security.demo.model.Role;
 import ru.kata.spring.boot_security.demo.model.User;
 import ru.kata.spring.boot_security.demo.repository.RoleDao;
 import ru.kata.spring.boot_security.demo.repository.UserDao;
-
-import javax.persistence.EntityManager;
-import javax.persistence.PersistenceContext;
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 @Service
 public class UserServiceImpl implements UserService, UserDetailsService {
 
-    @PersistenceContext
-    private EntityManager em;
     private final UserDao userDao;
-
     private final RoleDao roleDao;
+    private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
 
     @Autowired
     public UserServiceImpl(UserDao userDao, RoleDao roleDao) {
@@ -47,17 +41,28 @@ public class UserServiceImpl implements UserService, UserDetailsService {
     }
 
     @Override
-    public User saveUser(User user) {
-        User updatedUser = findByUsername(user.getUsername());
-        if (updatedUser == null) {
-            return userDao.save(user);
-        }
-        updatedUser.setPassword(user.getPassword());
-        updatedUser.setUsername(user.getUsername());
-        updatedUser.setAge(user.getAge());
-        updatedUser.setLastname(user.getLastname());
+    public User updateUser(User user, Long id) {
+        User updatedUser = findById(id);
         updatedUser.setName(user.getName());
+        updatedUser.setLastname(user.getLastname());
+        updatedUser.setAge(user.getAge());
+        updatedUser.setUsername(user.getUsername());
+        if (!(user.getPassword().startsWith("$2"))) {
+            updatedUser.setPassword(encoder.encode(user.getPassword()));
+        } else {
+            updatedUser.setPassword(user.getPassword());
+        }
+        updatedUser.setRoles(user.getRoles());
         return userDao.save(updatedUser);
+    }
+
+    @Override
+    public User saveUser(User user) {
+        user.setPassword(encoder.encode(user.getPassword()));
+        List<Role> roles = new ArrayList<>();
+        roles.add(roleDao.getById(2L));
+        user.setRoles(roles);
+        return userDao.save(user);
     }
 
     @Override
@@ -72,19 +77,12 @@ public class UserServiceImpl implements UserService, UserDetailsService {
         if (user == null) {
             throw new UsernameNotFoundException(String.format("User '%s' not found", username));
         }
-
-
-       /* Set<GrantedAuthority> grantedAuthorities= new HashSet<>();
-        for  (Role role : user.getRoles()) {
-            grantedAuthorities.add(new SimpleGrantedAuthority(role.getName()));
-        }*/
         return new org.springframework.security.core.userdetails.User(user.getUsername(), user.getPassword(), getAuthorities(user));
     }
 
     private static Collection<? extends GrantedAuthority> getAuthorities(User user) {
-        String[] userRoles = user.getRoles().stream().map((role) -> role.getName()).toArray(String[]::new);
-        Collection<GrantedAuthority> authorities = AuthorityUtils.createAuthorityList(userRoles);
-        return authorities;
+        String[] userRoles = user.getRoles().stream().map(Role::getName).toArray(String[]::new);
+        return AuthorityUtils.createAuthorityList(userRoles);
     }
 
     @Override
